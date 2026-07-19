@@ -10,6 +10,9 @@ description = "gkey daemon — system-wide Vimium-style keyboard control for Win
 name = "gkeyd"
 path = "src/main.rs"
 
+[build-dependencies]
+winresource = "0.1"
+
 [dependencies]
 gkey-core = { path = "../gkey-core" }
 crossbeam-channel.workspace = true

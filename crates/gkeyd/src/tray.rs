@@ -6,7 +6,7 @@
 //! any workspace-hidden windows and posts WM_QUIT so the message loop ends.
 
 use windows::core::{w, PCWSTR};
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
+use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, POINT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Shell::{
     Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NOTIFYICONDATAW,
@@ -133,7 +133,10 @@ pub fn install() -> bool {
             return false;
         };
 
-        let hicon = LoadIconW(None, IDI_APPLICATION).unwrap_or_default();
+        // Our embedded icon is resource id 1; fall back to the stock app icon.
+        let hicon = LoadIconW(HINSTANCE(hinst.0), PCWSTR(1 as *const u16))
+            .or_else(|_| LoadIconW(None, IDI_APPLICATION))
+            .unwrap_or_default();
         let mut nid = base_nid(hwnd);
         nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
         nid.uCallbackMessage = WM_APP_TRAY;
