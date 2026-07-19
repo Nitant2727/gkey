@@ -60,6 +60,8 @@ see [Running under Smart App Control](#running-under-smart-app-control)).
 - **Fully config-driven bindings** (`[normal]`, `[hint]`, `[remap]`) with **live
   hot-reload** — edit `%APPDATA%\gkey\config.toml`, save, and changes apply
   within ~1s without restarting the daemon.
+- **Tray icon** — the daemon adds a notification-area icon; right-click for
+  Settings / Restore windows / Quit, double-click to open settings.
 - **Settings GUI** (`gkey-settings.exe`) — a native window with a labelled
   dropdown for every binding plus the remaps. Each binding also has a **Set**
   button: click it and press the key you want (a temporary low-level hook grabs

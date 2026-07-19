@@ -8,6 +8,7 @@ mod input;
 mod overlay;
 mod state;
 mod tiling;
+mod tray;
 mod uia;
 mod watchdog;
 mod winevent;
@@ -179,6 +180,9 @@ fn main() -> Result<()> {
     let hook_tid = unsafe { GetCurrentThreadId() };
     let mut hook_handle = hook::install(tx)?;
     watchdog::spawn(hook_tid);
+    if tray::install() {
+        tracing::info!("tray icon added");
+    }
     tracing::info!("keyboard hook installed — press {activation_name} to enter normal mode");
 
     let mut msg = MSG::default();
