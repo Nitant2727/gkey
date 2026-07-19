@@ -4,3 +4,5 @@
 /dist
 # Logs / scratch
 *.log
+# Impeccable skill cache
+/.impeccable
