@@ -136,8 +136,10 @@ cargo build --release
 ```
 
 Copy [config.example.toml](config.example.toml) to
-`%APPDATA%\gkey\config.toml` to customise. The daemon runs in the foreground and
-logs to stdout; close the console to stop it.
+`%APPDATA%\gkey\config.toml` to customise. The daemon runs **console-less in the
+background** (a GUI-subsystem app) — control it from the **tray icon** (or the
+settings GUI's Stop button), and read logs from
+`%APPDATA%\gkey\gkeyd.log.<date>` (daily-rotated).
 
 > Global keyboard hooks and synthetic input look like a keylogger to antivirus
 > heuristics — sign the binary before distributing it.

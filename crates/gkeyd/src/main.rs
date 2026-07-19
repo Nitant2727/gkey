@@ -1,5 +1,10 @@
-//! gkey daemon — phase 1: system-wide modal keyboard control (remaps + a
-//! Vimium-style normal mode for cursor/scroll/click). Tiling WM comes later.
+//! gkey daemon — system-wide modal keyboard control (remaps, a Vimium-style
+//! normal mode for cursor/scroll/click/hints) plus a tiling window manager.
+//!
+//! Runs as a background (GUI-subsystem) process with no console; control it
+//! from the tray icon or the settings GUI, and read logs from the log file.
+
+#![windows_subsystem = "windows"]
 
 mod engine;
 mod hints;
@@ -114,9 +119,20 @@ fn spawn_reloader(path: PathBuf, tx: crossbeam_channel::Sender<Config>) {
 }
 
 fn main() -> Result<()> {
+    // Log to a daily-rotated file (no console — this is a GUI-subsystem app).
+    let log_dir = {
+        let base = std::env::var("APPDATA").unwrap_or_else(|_| ".".into());
+        PathBuf::from(base).join("gkey")
+    };
+    let _ = std::fs::create_dir_all(&log_dir);
+    let (writer, _log_guard) =
+        tracing_appender::non_blocking(tracing_appender::rolling::daily(&log_dir, "gkeyd.log"));
     tracing_subscriber::fmt()
+        .with_ansi(false)
         .with_max_level(tracing::Level::INFO)
+        .with_writer(writer)
         .init();
+    tracing::info!("gkey daemon starting; logging to {}", log_dir.display());
 
     // Per-monitor DPI v2 so cursor coordinates are true physical pixels across
     // mixed-DPI monitors (matters once overlays/hints land).
