@@ -1,0 +1,6 @@
+# Rust build output
+/target
+# Assembled release bundle
+/dist
+# Logs / scratch
+*.log

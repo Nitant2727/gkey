@@ -1,0 +1,22 @@
+[package]
+name = "gkey-watcher"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Crash-restore watcher for gkey — un-hides workspace windows if the daemon dies"
+
+[[bin]]
+name = "gkey-watcher"
+path = "src/main.rs"
+
+[dependencies]
+gkey-core = { path = "../gkey-core" }
+
+[dependencies.windows]
+workspace = true
+features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+]

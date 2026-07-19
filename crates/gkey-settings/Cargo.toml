@@ -1,0 +1,26 @@
+[package]
+name = "gkey-settings"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Settings GUI for gkey — edits the config the daemon hot-reloads"
+
+[[bin]]
+name = "gkey-settings"
+path = "src/main.rs"
+
+[dependencies]
+gkey-core = { path = "../gkey-core" }
+
+[dependencies.windows]
+workspace = true
+features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Controls",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Threading",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_Graphics_Gdi",
+]

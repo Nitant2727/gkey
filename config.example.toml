@@ -1,0 +1,70 @@
+# gkey configuration.
+# Location: %APPDATA%\gkey\config.toml  (or pass a path as the first CLI arg)
+# Edits are hot-reloaded live — save the file and the daemon picks it up within ~1s.
+#
+# Key names: A-Z, 0-9, Comma, Period, Semicolon, Slash, Minus, Equals, Space,
+# Tab, Backspace, Enter, Escape, CapsLock, LeftShift, RightShift, LeftControl,
+# LeftAlt, RightControl, RightAlt, Left, Right, Up, Down, Home, End, PageUp,
+# PageDown, Delete, Insert.
+
+[general]
+activation = "CapsLock"   # enters normal (pointer) mode from idle
+move_step = 40            # pixels per motion press
+fast_multiplier = 4       # multiplier while the `faster` key is held
+scroll_amount = 3         # wheel notches per scroll press
+altgr = true             # swallow the synthetic Ctrl that AltGr layouts inject
+
+[normal]                  # bindings active in normal (pointer) mode
+move_left   = "H"
+move_right  = "L"
+move_up     = "K"
+move_down   = "J"
+faster      = "LeftShift" # hold for fast motion (set "" to disable)
+click_left  = "M"
+click_middle= "Comma"
+click_right = "Period"
+scroll_up   = "E"
+scroll_down = "D"
+scroll_left = "W"
+scroll_right= "R"
+hint        = "F"         # hint mode over UI-Automation elements
+grid        = "G"         # hint mode over a screen grid (fallback)
+tile        = "T"         # tile current monitor (BSP) — "" to disable
+tile_columns= ""          # tile current monitor (columns)
+focus_next  = "N"         # focus next window on the monitor
+focus_prev  = "B"         # focus previous window
+toggle_tiling= ""         # toggle live auto-tiling on/off
+resize_grow = "Equals"    # grow the master tiling area
+resize_shrink= "Minus"    # shrink the master tiling area
+swap_next   = "O"         # swap focused window with the next
+swap_prev   = "I"         # swap focused window with the previous
+workspace_next = ""       # switch to next workspace (1..9, cycles)
+workspace_prev = ""       # switch to previous workspace
+move_workspace_next = ""  # move focused window to next workspace
+move_workspace_prev = ""  # move focused window to previous workspace
+promote     = ""          # make focused window the master tile
+exit        = "Escape"    # leave normal mode (activation key also toggles)
+
+[hint]                    # hint mode
+chars     = "sadfjklewcmpgh"  # alphabet used to build labels
+exit      = "Escape"          # cancel
+backspace = "Backspace"       # delete last typed label character
+
+[tiling]
+auto = false              # live: retile when windows open/close/minimize
+gap = 8                   # pixels between adjacent tiled windows
+outer_gap = 8             # pixels between the tiling and the screen edge
+number_keys = true        # normal: 1-9 switch workspace, Shift+1-9 move window there
+
+# Windows matching any rule below float (are left out of tiling). Each rule
+# matches when every field it lists is a case-insensitive substring of the
+# window's value. Edit here (GUI preserves these) — changes hot-reload.
+# [[tiling.float]]
+# class = "#32770"              # standard dialog boxes
+# [[tiling.float]]
+# exe = "Taskmgr.exe"
+# [[tiling.float]]
+# title = "Picture in picture"
+
+[remap]                   # physical-key remaps active in IDLE mode (typing)
+# RightAlt = "RightControl"

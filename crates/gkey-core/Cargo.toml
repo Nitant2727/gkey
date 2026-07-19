@@ -1,0 +1,13 @@
+[package]
+name = "gkey-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Shared config, key, and action model for gkey"
+
+[dependencies]
+serde.workspace = true
+toml.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
