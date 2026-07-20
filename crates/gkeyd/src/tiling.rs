@@ -195,7 +195,11 @@ fn is_floating(hwnd: HWND) -> bool {
     let class = class_name(hwnd);
     let title = window_title(hwnd);
     let need_exe = rules.iter().any(|r| r.exe.is_some());
-    let exe = if need_exe { window_exe(hwnd) } else { String::new() };
+    let exe = if need_exe {
+        window_exe(hwnd)
+    } else {
+        String::new()
+    };
     rules.iter().any(|r| r.matches(&exe, &class, &title))
 }
 
@@ -222,8 +226,10 @@ fn is_manageable(hwnd: HWND, target: Option<HMONITOR>) -> bool {
         }
         // Shell surfaces.
         let class = class_name(hwnd);
-        if matches!(class.as_str(), "Progman" | "WorkerW" | "Shell_TrayWnd" | "Windows.UI.Core.CoreWindow")
-        {
+        if matches!(
+            class.as_str(),
+            "Progman" | "WorkerW" | "Shell_TrayWnd" | "Windows.UI.Core.CoreWindow"
+        ) {
             return false;
         }
         if is_floating(hwnd) {
@@ -266,10 +272,7 @@ fn split_v_ratio(a: RECT, ratio: f32) -> (RECT, RECT) {
 
 fn split_h(a: RECT) -> (RECT, RECT) {
     let mid = (a.top + a.bottom) / 2;
-    (
-        RECT { bottom: mid, ..a },
-        RECT { top: mid, ..a },
-    )
+    (RECT { bottom: mid, ..a }, RECT { top: mid, ..a })
 }
 
 fn compute(layout: Layout, area: RECT, n: usize) -> Vec<RECT> {
@@ -294,12 +297,20 @@ fn compute(layout: Layout, area: RECT, n: usize) -> Vec<RECT> {
                 // Master column takes `ratio`; the rest split the remainder.
                 let w = area.right - area.left;
                 let first = (w as f32 * ratio) as i32;
-                rects.push(RECT { right: area.left + first, ..area });
+                rects.push(RECT {
+                    right: area.left + first,
+                    ..area
+                });
                 let rest_w = w - first;
                 for i in 0..(n - 1) {
                     let l = area.left + first + (rest_w * i as i32) / (n as i32 - 1);
                     let r = area.left + first + (rest_w * (i as i32 + 1)) / (n as i32 - 1);
-                    rects.push(RECT { left: l, top: area.top, right: r, bottom: area.bottom });
+                    rects.push(RECT {
+                        left: l,
+                        top: area.top,
+                        right: r,
+                        bottom: area.bottom,
+                    });
                 }
             }
         }
@@ -509,7 +520,7 @@ pub fn promote() {
 const WORKSPACES: usize = 9;
 
 struct Ws {
-    active: HashMap<isize, usize>,          // monitor key -> active workspace
+    active: HashMap<isize, usize>, // monitor key -> active workspace
     assign: HashMap<isize, (isize, usize)>, // hwnd -> (monitor key, workspace)
 }
 
@@ -536,8 +547,7 @@ fn set_visible(hwnd: HWND, visible: bool) {
 }
 
 fn prune_dead() {
-    ws()
-        .lock()
+    ws().lock()
         .unwrap()
         .assign
         .retain(|&hi, _| unsafe { IsWindow(HWND(hi as *mut c_void)).as_bool() });

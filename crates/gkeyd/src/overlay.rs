@@ -48,7 +48,11 @@ pub enum UiCmd {
     Show(Vec<Hint>),
     Hide,
     /// Briefly show a centered text toast at a physical screen point.
-    Indicator { text: String, cx: i32, cy: i32 },
+    Indicator {
+        text: String,
+        cx: i32,
+        cy: i32,
+    },
 }
 
 struct Indicator {
@@ -83,7 +87,20 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             let (ox, oy) = *ORIGIN.lock().unwrap();
             let box_brush = CreateSolidBrush(colorref(BOX_FILL));
             let font: HFONT = CreateFontW(
-                -18, 0, 0, 0, FW_BOLD.0 as i32, 0, 0, 0, 0, 0, 0, 0, 0, PCWSTR(wide("Segoe UI").as_ptr()),
+                -18,
+                0,
+                0,
+                0,
+                FW_BOLD.0 as i32,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                PCWSTR(wide("Segoe UI").as_ptr()),
             );
             let old_font = SelectObject(hdc, HGDIOBJ(font.0));
             SetBkMode(hdc, TRANSPARENT);
@@ -156,11 +173,8 @@ fn create_window() -> HWND {
         let vh = GetSystemMetrics(SM_CYVIRTUALSCREEN);
         *ORIGIN.lock().unwrap() = (vx, vy);
 
-        let ex = WS_EX_LAYERED
-            | WS_EX_TRANSPARENT
-            | WS_EX_TOPMOST
-            | WS_EX_NOACTIVATE
-            | WS_EX_TOOLWINDOW;
+        let ex =
+            WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
         let hwnd = CreateWindowExW(
             WINDOW_EX_STYLE(ex.0),
             PCWSTR(class.as_ptr()),
@@ -237,8 +251,8 @@ pub fn spawn() -> Sender<UiCmd> {
                     }
                 }
                 if dirty {
-                    let show = !HINTS.lock().unwrap().is_empty()
-                        || INDICATOR.lock().unwrap().is_some();
+                    let show =
+                        !HINTS.lock().unwrap().is_empty() || INDICATOR.lock().unwrap().is_some();
                     unsafe {
                         let _ = ShowWindow(hwnd, if show { SW_SHOWNOACTIVATE } else { SW_HIDE });
                         if show {

@@ -123,6 +123,8 @@ mod tests {
     fn grid_covers_screen() {
         let t = grid_targets(0, 0, 1920, 1080, 200);
         assert!(!t.is_empty());
-        assert!(t.iter().all(|&(x, y)| x >= 0 && x < 1920 && y >= 0 && y < 1080));
+        assert!(t
+            .iter()
+            .all(|&(x, y)| x >= 0 && x < 1920 && y >= 0 && y < 1080));
     }
 }

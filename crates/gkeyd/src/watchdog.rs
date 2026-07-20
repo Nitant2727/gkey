@@ -29,12 +29,8 @@ pub fn spawn(hook_thread_id: u32) {
             if hook::heartbeat_count() == before {
                 tracing::warn!("keyboard hook unresponsive; requesting reinstall");
                 unsafe {
-                    let _ = PostThreadMessageW(
-                        hook_thread_id,
-                        WM_APP_REINSTALL,
-                        WPARAM(0),
-                        LPARAM(0),
-                    );
+                    let _ =
+                        PostThreadMessageW(hook_thread_id, WM_APP_REINSTALL, WPARAM(0), LPARAM(0));
                 }
             }
         })

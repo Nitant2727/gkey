@@ -233,8 +233,7 @@ impl RawConfig {
     pub fn save(&self, path: &Path) -> Result<()> {
         Config::resolve(self.clone()).context("config is invalid; not saved")?;
         if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir)
-                .with_context(|| format!("creating {}", dir.display()))?;
+            std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
         }
         let text = toml::to_string_pretty(self).context("serializing config")?;
         std::fs::write(path, text).with_context(|| format!("writing {}", path.display()))?;
@@ -311,15 +310,39 @@ impl Config {
         bind(&n.tile_columns, "normal.tile_columns", Action::TileColumns)?;
         bind(&n.focus_next, "normal.focus_next", Action::FocusNext)?;
         bind(&n.focus_prev, "normal.focus_prev", Action::FocusPrev)?;
-        bind(&n.toggle_tiling, "normal.toggle_tiling", Action::ToggleTiling)?;
+        bind(
+            &n.toggle_tiling,
+            "normal.toggle_tiling",
+            Action::ToggleTiling,
+        )?;
         bind(&n.resize_grow, "normal.resize_grow", Action::ResizeGrow)?;
-        bind(&n.resize_shrink, "normal.resize_shrink", Action::ResizeShrink)?;
+        bind(
+            &n.resize_shrink,
+            "normal.resize_shrink",
+            Action::ResizeShrink,
+        )?;
         bind(&n.swap_next, "normal.swap_next", Action::SwapNext)?;
         bind(&n.swap_prev, "normal.swap_prev", Action::SwapPrev)?;
-        bind(&n.workspace_next, "normal.workspace_next", Action::WorkspaceNext)?;
-        bind(&n.workspace_prev, "normal.workspace_prev", Action::WorkspacePrev)?;
-        bind(&n.move_workspace_next, "normal.move_workspace_next", Action::MoveWorkspaceNext)?;
-        bind(&n.move_workspace_prev, "normal.move_workspace_prev", Action::MoveWorkspacePrev)?;
+        bind(
+            &n.workspace_next,
+            "normal.workspace_next",
+            Action::WorkspaceNext,
+        )?;
+        bind(
+            &n.workspace_prev,
+            "normal.workspace_prev",
+            Action::WorkspacePrev,
+        )?;
+        bind(
+            &n.move_workspace_next,
+            "normal.move_workspace_next",
+            Action::MoveWorkspaceNext,
+        )?;
+        bind(
+            &n.move_workspace_prev,
+            "normal.move_workspace_prev",
+            Action::MoveWorkspacePrev,
+        )?;
         bind(&n.promote, "normal.promote", Action::Promote)?;
 
         let faster = if n.faster.trim().is_empty() {
@@ -354,7 +377,13 @@ impl Config {
             gap: raw.tiling.gap.max(0),
             outer_gap: raw.tiling.outer_gap.max(0),
             number_workspaces: raw.tiling.number_keys,
-            float_rules: raw.tiling.float.iter().filter(|r| !r.is_empty()).cloned().collect(),
+            float_rules: raw
+                .tiling
+                .float
+                .iter()
+                .filter(|r| !r.is_empty())
+                .cloned()
+                .collect(),
             normal_map,
             faster,
             normal_exit: key(&n.exit, "normal.exit")?,

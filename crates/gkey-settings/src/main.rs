@@ -17,7 +17,9 @@ use gkey_core::config::{FloatRule, RawConfig};
 use gkey_core::keys::{self, KeyCode};
 
 use windows::core::PCWSTR;
-use windows::Win32::Foundation::{BOOL, CloseHandle, FALSE, HINSTANCE, HWND, LPARAM, LRESULT, TRUE, WPARAM};
+use windows::Win32::Foundation::{
+    CloseHandle, BOOL, FALSE, HINSTANCE, HWND, LPARAM, LRESULT, TRUE, WPARAM,
+};
 use windows::Win32::Graphics::Gdi::{GetStockObject, DEFAULT_GUI_FONT};
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
@@ -27,8 +29,8 @@ use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_T
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
     EnumChildWindows, GetDlgItem, GetDlgItemTextW, GetMessageW, KillTimer, LoadCursorW, LoadIconW,
-    PostMessageW, PostQuitMessage, RegisterClassW, SendMessageW, SetTimer, SetWindowsHookExW,
-    SetWindowTextW, ShowWindow, TranslateMessage, UnhookWindowsHookEx, HHOOK, HMENU, IDC_ARROW,
+    PostMessageW, PostQuitMessage, RegisterClassW, SendMessageW, SetTimer, SetWindowTextW,
+    SetWindowsHookExW, ShowWindow, TranslateMessage, UnhookWindowsHookEx, HHOOK, HMENU, IDC_ARROW,
     KBDLLHOOKSTRUCT, MSG, SW_SHOW, WH_KEYBOARD_LL, WINDOW_EX_STYLE, WINDOW_STYLE, WM_CLOSE,
     WM_COMMAND, WM_DESTROY, WM_KEYDOWN, WM_SYSKEYDOWN, WM_TIMER, WNDCLASSW, WS_BORDER, WS_CAPTION,
     WS_CHILD, WS_MINIMIZEBOX, WS_SYSMENU, WS_TABSTOP, WS_VISIBLE, WS_VSCROLL,
@@ -149,50 +151,261 @@ enum Row {
 fn layout() -> Vec<Row> {
     vec![
         Row::Section("General"),
-        Row::Key(KField { id: ID_ACT, label: "Activation", get: |c| c.general.activation.clone(), set: |c, v| c.general.activation = v }),
-        Row::Val(VField { id: ID_STEP, label: "Move step (px)", numeric: true, get: |c| c.general.move_step.to_string(), set: |c, v| c.general.move_step = v.parse().unwrap_or(c.general.move_step) }),
-        Row::Val(VField { id: ID_FASTMUL, label: "Fast multiplier", numeric: true, get: |c| c.general.fast_multiplier.to_string(), set: |c, v| c.general.fast_multiplier = v.parse().unwrap_or(c.general.fast_multiplier) }),
-        Row::Val(VField { id: ID_SCROLL, label: "Scroll amount", numeric: true, get: |c| c.general.scroll_amount.to_string(), set: |c, v| c.general.scroll_amount = v.parse().unwrap_or(c.general.scroll_amount) }),
-        Row::Check(CField { id: ID_ALTGR, label: "Handle AltGr (swallow fake Ctrl)", get: |c| c.general.altgr, set: |c, v| c.general.altgr = v }),
+        Row::Key(KField {
+            id: ID_ACT,
+            label: "Activation",
+            get: |c| c.general.activation.clone(),
+            set: |c, v| c.general.activation = v,
+        }),
+        Row::Val(VField {
+            id: ID_STEP,
+            label: "Move step (px)",
+            numeric: true,
+            get: |c| c.general.move_step.to_string(),
+            set: |c, v| c.general.move_step = v.parse().unwrap_or(c.general.move_step),
+        }),
+        Row::Val(VField {
+            id: ID_FASTMUL,
+            label: "Fast multiplier",
+            numeric: true,
+            get: |c| c.general.fast_multiplier.to_string(),
+            set: |c, v| c.general.fast_multiplier = v.parse().unwrap_or(c.general.fast_multiplier),
+        }),
+        Row::Val(VField {
+            id: ID_SCROLL,
+            label: "Scroll amount",
+            numeric: true,
+            get: |c| c.general.scroll_amount.to_string(),
+            set: |c, v| c.general.scroll_amount = v.parse().unwrap_or(c.general.scroll_amount),
+        }),
+        Row::Check(CField {
+            id: ID_ALTGR,
+            label: "Handle AltGr (swallow fake Ctrl)",
+            get: |c| c.general.altgr,
+            set: |c, v| c.general.altgr = v,
+        }),
         Row::Section("Normal mode"),
-        Row::Key(KField { id: ID_ML, label: "Move left", get: |c| c.normal.move_left.clone(), set: |c, v| c.normal.move_left = v }),
-        Row::Key(KField { id: ID_MD, label: "Move down", get: |c| c.normal.move_down.clone(), set: |c, v| c.normal.move_down = v }),
-        Row::Key(KField { id: ID_MU, label: "Move up", get: |c| c.normal.move_up.clone(), set: |c, v| c.normal.move_up = v }),
-        Row::Key(KField { id: ID_MR, label: "Move right", get: |c| c.normal.move_right.clone(), set: |c, v| c.normal.move_right = v }),
-        Row::Key(KField { id: ID_FAST, label: "Faster (hold)", get: |c| c.normal.faster.clone(), set: |c, v| c.normal.faster = v }),
-        Row::Key(KField { id: ID_CL, label: "Click left", get: |c| c.normal.click_left.clone(), set: |c, v| c.normal.click_left = v }),
-        Row::Key(KField { id: ID_CM, label: "Click middle", get: |c| c.normal.click_middle.clone(), set: |c, v| c.normal.click_middle = v }),
-        Row::Key(KField { id: ID_CR, label: "Click right", get: |c| c.normal.click_right.clone(), set: |c, v| c.normal.click_right = v }),
-        Row::Key(KField { id: ID_SU, label: "Scroll up", get: |c| c.normal.scroll_up.clone(), set: |c, v| c.normal.scroll_up = v }),
-        Row::Key(KField { id: ID_SD, label: "Scroll down", get: |c| c.normal.scroll_down.clone(), set: |c, v| c.normal.scroll_down = v }),
-        Row::Key(KField { id: ID_SL, label: "Scroll left", get: |c| c.normal.scroll_left.clone(), set: |c, v| c.normal.scroll_left = v }),
-        Row::Key(KField { id: ID_SRR, label: "Scroll right", get: |c| c.normal.scroll_right.clone(), set: |c, v| c.normal.scroll_right = v }),
-        Row::Key(KField { id: ID_HINT, label: "Hint (elements)", get: |c| c.normal.hint.clone(), set: |c, v| c.normal.hint = v }),
-        Row::Key(KField { id: ID_GRID, label: "Hint (grid)", get: |c| c.normal.grid.clone(), set: |c, v| c.normal.grid = v }),
-        Row::Key(KField { id: ID_TILE, label: "Tile (BSP)", get: |c| c.normal.tile.clone(), set: |c, v| c.normal.tile = v }),
-        Row::Key(KField { id: ID_TILECOL, label: "Tile (columns)", get: |c| c.normal.tile_columns.clone(), set: |c, v| c.normal.tile_columns = v }),
-        Row::Key(KField { id: ID_FOCUSN, label: "Focus next", get: |c| c.normal.focus_next.clone(), set: |c, v| c.normal.focus_next = v }),
-        Row::Key(KField { id: ID_FOCUSP, label: "Focus prev", get: |c| c.normal.focus_prev.clone(), set: |c, v| c.normal.focus_prev = v }),
-        Row::Key(KField { id: ID_TOGGLETILE, label: "Toggle auto-tile", get: |c| c.normal.toggle_tiling.clone(), set: |c, v| c.normal.toggle_tiling = v }),
-        Row::Key(KField { id: ID_RGROW, label: "Resize grow", get: |c| c.normal.resize_grow.clone(), set: |c, v| c.normal.resize_grow = v }),
-        Row::Key(KField { id: ID_RSHRINK, label: "Resize shrink", get: |c| c.normal.resize_shrink.clone(), set: |c, v| c.normal.resize_shrink = v }),
-        Row::Key(KField { id: ID_SWAPN, label: "Swap next", get: |c| c.normal.swap_next.clone(), set: |c, v| c.normal.swap_next = v }),
-        Row::Key(KField { id: ID_SWAPP, label: "Swap prev", get: |c| c.normal.swap_prev.clone(), set: |c, v| c.normal.swap_prev = v }),
-        Row::Key(KField { id: ID_WSN, label: "Workspace next", get: |c| c.normal.workspace_next.clone(), set: |c, v| c.normal.workspace_next = v }),
-        Row::Key(KField { id: ID_WSP, label: "Workspace prev", get: |c| c.normal.workspace_prev.clone(), set: |c, v| c.normal.workspace_prev = v }),
-        Row::Key(KField { id: ID_MWSN, label: "Move to ws next", get: |c| c.normal.move_workspace_next.clone(), set: |c, v| c.normal.move_workspace_next = v }),
-        Row::Key(KField { id: ID_MWSP, label: "Move to ws prev", get: |c| c.normal.move_workspace_prev.clone(), set: |c, v| c.normal.move_workspace_prev = v }),
-        Row::Key(KField { id: ID_PROMOTE, label: "Promote to master", get: |c| c.normal.promote.clone(), set: |c, v| c.normal.promote = v }),
-        Row::Key(KField { id: ID_NEXIT, label: "Exit to idle", get: |c| c.normal.exit.clone(), set: |c, v| c.normal.exit = v }),
+        Row::Key(KField {
+            id: ID_ML,
+            label: "Move left",
+            get: |c| c.normal.move_left.clone(),
+            set: |c, v| c.normal.move_left = v,
+        }),
+        Row::Key(KField {
+            id: ID_MD,
+            label: "Move down",
+            get: |c| c.normal.move_down.clone(),
+            set: |c, v| c.normal.move_down = v,
+        }),
+        Row::Key(KField {
+            id: ID_MU,
+            label: "Move up",
+            get: |c| c.normal.move_up.clone(),
+            set: |c, v| c.normal.move_up = v,
+        }),
+        Row::Key(KField {
+            id: ID_MR,
+            label: "Move right",
+            get: |c| c.normal.move_right.clone(),
+            set: |c, v| c.normal.move_right = v,
+        }),
+        Row::Key(KField {
+            id: ID_FAST,
+            label: "Faster (hold)",
+            get: |c| c.normal.faster.clone(),
+            set: |c, v| c.normal.faster = v,
+        }),
+        Row::Key(KField {
+            id: ID_CL,
+            label: "Click left",
+            get: |c| c.normal.click_left.clone(),
+            set: |c, v| c.normal.click_left = v,
+        }),
+        Row::Key(KField {
+            id: ID_CM,
+            label: "Click middle",
+            get: |c| c.normal.click_middle.clone(),
+            set: |c, v| c.normal.click_middle = v,
+        }),
+        Row::Key(KField {
+            id: ID_CR,
+            label: "Click right",
+            get: |c| c.normal.click_right.clone(),
+            set: |c, v| c.normal.click_right = v,
+        }),
+        Row::Key(KField {
+            id: ID_SU,
+            label: "Scroll up",
+            get: |c| c.normal.scroll_up.clone(),
+            set: |c, v| c.normal.scroll_up = v,
+        }),
+        Row::Key(KField {
+            id: ID_SD,
+            label: "Scroll down",
+            get: |c| c.normal.scroll_down.clone(),
+            set: |c, v| c.normal.scroll_down = v,
+        }),
+        Row::Key(KField {
+            id: ID_SL,
+            label: "Scroll left",
+            get: |c| c.normal.scroll_left.clone(),
+            set: |c, v| c.normal.scroll_left = v,
+        }),
+        Row::Key(KField {
+            id: ID_SRR,
+            label: "Scroll right",
+            get: |c| c.normal.scroll_right.clone(),
+            set: |c, v| c.normal.scroll_right = v,
+        }),
+        Row::Key(KField {
+            id: ID_HINT,
+            label: "Hint (elements)",
+            get: |c| c.normal.hint.clone(),
+            set: |c, v| c.normal.hint = v,
+        }),
+        Row::Key(KField {
+            id: ID_GRID,
+            label: "Hint (grid)",
+            get: |c| c.normal.grid.clone(),
+            set: |c, v| c.normal.grid = v,
+        }),
+        Row::Key(KField {
+            id: ID_TILE,
+            label: "Tile (BSP)",
+            get: |c| c.normal.tile.clone(),
+            set: |c, v| c.normal.tile = v,
+        }),
+        Row::Key(KField {
+            id: ID_TILECOL,
+            label: "Tile (columns)",
+            get: |c| c.normal.tile_columns.clone(),
+            set: |c, v| c.normal.tile_columns = v,
+        }),
+        Row::Key(KField {
+            id: ID_FOCUSN,
+            label: "Focus next",
+            get: |c| c.normal.focus_next.clone(),
+            set: |c, v| c.normal.focus_next = v,
+        }),
+        Row::Key(KField {
+            id: ID_FOCUSP,
+            label: "Focus prev",
+            get: |c| c.normal.focus_prev.clone(),
+            set: |c, v| c.normal.focus_prev = v,
+        }),
+        Row::Key(KField {
+            id: ID_TOGGLETILE,
+            label: "Toggle auto-tile",
+            get: |c| c.normal.toggle_tiling.clone(),
+            set: |c, v| c.normal.toggle_tiling = v,
+        }),
+        Row::Key(KField {
+            id: ID_RGROW,
+            label: "Resize grow",
+            get: |c| c.normal.resize_grow.clone(),
+            set: |c, v| c.normal.resize_grow = v,
+        }),
+        Row::Key(KField {
+            id: ID_RSHRINK,
+            label: "Resize shrink",
+            get: |c| c.normal.resize_shrink.clone(),
+            set: |c, v| c.normal.resize_shrink = v,
+        }),
+        Row::Key(KField {
+            id: ID_SWAPN,
+            label: "Swap next",
+            get: |c| c.normal.swap_next.clone(),
+            set: |c, v| c.normal.swap_next = v,
+        }),
+        Row::Key(KField {
+            id: ID_SWAPP,
+            label: "Swap prev",
+            get: |c| c.normal.swap_prev.clone(),
+            set: |c, v| c.normal.swap_prev = v,
+        }),
+        Row::Key(KField {
+            id: ID_WSN,
+            label: "Workspace next",
+            get: |c| c.normal.workspace_next.clone(),
+            set: |c, v| c.normal.workspace_next = v,
+        }),
+        Row::Key(KField {
+            id: ID_WSP,
+            label: "Workspace prev",
+            get: |c| c.normal.workspace_prev.clone(),
+            set: |c, v| c.normal.workspace_prev = v,
+        }),
+        Row::Key(KField {
+            id: ID_MWSN,
+            label: "Move to ws next",
+            get: |c| c.normal.move_workspace_next.clone(),
+            set: |c, v| c.normal.move_workspace_next = v,
+        }),
+        Row::Key(KField {
+            id: ID_MWSP,
+            label: "Move to ws prev",
+            get: |c| c.normal.move_workspace_prev.clone(),
+            set: |c, v| c.normal.move_workspace_prev = v,
+        }),
+        Row::Key(KField {
+            id: ID_PROMOTE,
+            label: "Promote to master",
+            get: |c| c.normal.promote.clone(),
+            set: |c, v| c.normal.promote = v,
+        }),
+        Row::Key(KField {
+            id: ID_NEXIT,
+            label: "Exit to idle",
+            get: |c| c.normal.exit.clone(),
+            set: |c, v| c.normal.exit = v,
+        }),
         Row::Section("Hint mode"),
-        Row::Val(VField { id: ID_CHARS, label: "Label alphabet", numeric: false, get: |c| c.hint.chars.clone(), set: |c, v| c.hint.chars = v }),
-        Row::Key(KField { id: ID_HEXIT, label: "Cancel", get: |c| c.hint.exit.clone(), set: |c, v| c.hint.exit = v }),
-        Row::Key(KField { id: ID_HBS, label: "Backspace", get: |c| c.hint.backspace.clone(), set: |c, v| c.hint.backspace = v }),
+        Row::Val(VField {
+            id: ID_CHARS,
+            label: "Label alphabet",
+            numeric: false,
+            get: |c| c.hint.chars.clone(),
+            set: |c, v| c.hint.chars = v,
+        }),
+        Row::Key(KField {
+            id: ID_HEXIT,
+            label: "Cancel",
+            get: |c| c.hint.exit.clone(),
+            set: |c, v| c.hint.exit = v,
+        }),
+        Row::Key(KField {
+            id: ID_HBS,
+            label: "Backspace",
+            get: |c| c.hint.backspace.clone(),
+            set: |c, v| c.hint.backspace = v,
+        }),
         Row::Section("Tiling"),
-        Row::Check(CField { id: ID_AUTOTILE, label: "Auto-tile on window open/close", get: |c| c.tiling.auto, set: |c, v| c.tiling.auto = v }),
-        Row::Val(VField { id: ID_GAP, label: "Gap (px)", numeric: true, get: |c| c.tiling.gap.to_string(), set: |c, v| c.tiling.gap = v.parse().unwrap_or(c.tiling.gap) }),
-        Row::Val(VField { id: ID_OUTERGAP, label: "Outer gap (px)", numeric: true, get: |c| c.tiling.outer_gap.to_string(), set: |c, v| c.tiling.outer_gap = v.parse().unwrap_or(c.tiling.outer_gap) }),
-        Row::Check(CField { id: ID_NUMKEYS, label: "Keys 1-9 switch workspaces", get: |c| c.tiling.number_keys, set: |c, v| c.tiling.number_keys = v }),
+        Row::Check(CField {
+            id: ID_AUTOTILE,
+            label: "Auto-tile on window open/close",
+            get: |c| c.tiling.auto,
+            set: |c, v| c.tiling.auto = v,
+        }),
+        Row::Val(VField {
+            id: ID_GAP,
+            label: "Gap (px)",
+            numeric: true,
+            get: |c| c.tiling.gap.to_string(),
+            set: |c, v| c.tiling.gap = v.parse().unwrap_or(c.tiling.gap),
+        }),
+        Row::Val(VField {
+            id: ID_OUTERGAP,
+            label: "Outer gap (px)",
+            numeric: true,
+            get: |c| c.tiling.outer_gap.to_string(),
+            set: |c, v| c.tiling.outer_gap = v.parse().unwrap_or(c.tiling.outer_gap),
+        }),
+        Row::Check(CField {
+            id: ID_NUMKEYS,
+            label: "Keys 1-9 switch workspaces",
+            get: |c| c.tiling.number_keys,
+            set: |c, v| c.tiling.number_keys = v,
+        }),
     ]
 }
 
@@ -208,8 +421,11 @@ struct AppState {
 static APP: OnceLock<Mutex<AppState>> = OnceLock::new();
 
 fn remaps_from_raw(raw: &RawConfig) -> Vec<(String, String)> {
-    let mut v: Vec<(String, String)> =
-        raw.remap.iter().map(|(a, b)| (a.clone(), b.clone())).collect();
+    let mut v: Vec<(String, String)> = raw
+        .remap
+        .iter()
+        .map(|(a, b)| (a.clone(), b.clone()))
+        .collect();
     v.sort();
     v
 }
@@ -295,20 +511,76 @@ unsafe fn create_controls(parent: HWND, hinst: windows::Win32::Foundation::HINST
         match row {
             Row::Section(title) => {
                 y += 6;
-                make("STATIC", title, label_style, lx, y, 300, 20, parent, 0, hinst);
+                make(
+                    "STATIC",
+                    title,
+                    label_style,
+                    lx,
+                    y,
+                    300,
+                    20,
+                    parent,
+                    0,
+                    hinst,
+                );
                 y += 22;
             }
             Row::Key(k) => {
-                make("STATIC", k.label, label_style, lx, y + 3, lw, 20, parent, 0, hinst);
-                let h = make("COMBOBOX", "", combo_style, cx, y, cw, 220, parent, k.id, hinst);
+                make(
+                    "STATIC",
+                    k.label,
+                    label_style,
+                    lx,
+                    y + 3,
+                    lw,
+                    20,
+                    parent,
+                    0,
+                    hinst,
+                );
+                let h = make(
+                    "COMBOBOX",
+                    "",
+                    combo_style,
+                    cx,
+                    y,
+                    cw,
+                    220,
+                    parent,
+                    k.id,
+                    hinst,
+                );
                 combo_add(h, &st.remap_names); // includes "(none)" for unbound
                 let btn = WS_CHILD.0 | WS_VISIBLE.0 | WS_TABSTOP.0 | BS_PUSHBUTTON;
-                make("BUTTON", "Set", btn, cx + cw + 6, y, 44, 22, parent, k.id + SET_OFFSET, hinst);
+                make(
+                    "BUTTON",
+                    "Set",
+                    btn,
+                    cx + cw + 6,
+                    y,
+                    44,
+                    22,
+                    parent,
+                    k.id + SET_OFFSET,
+                    hinst,
+                );
                 y += rowh;
             }
             Row::Val(v) => {
-                make("STATIC", v.label, label_style, lx, y + 3, lw, 20, parent, 0, hinst);
-                let mut es = WS_CHILD.0 | WS_VISIBLE.0 | WS_BORDER.0 | WS_TABSTOP.0 | ES_AUTOHSCROLL;
+                make(
+                    "STATIC",
+                    v.label,
+                    label_style,
+                    lx,
+                    y + 3,
+                    lw,
+                    20,
+                    parent,
+                    0,
+                    hinst,
+                );
+                let mut es =
+                    WS_CHILD.0 | WS_VISIBLE.0 | WS_BORDER.0 | WS_TABSTOP.0 | ES_AUTOHSCROLL;
                 if v.numeric {
                     es |= ES_NUMBER;
                 }
@@ -325,47 +597,201 @@ unsafe fn create_controls(parent: HWND, hinst: windows::Win32::Foundation::HINST
 
     // Remap section — one row per entry in the model, with a remove button.
     y += 6;
-    make("STATIC", "Idle remaps (physical → sent)", label_style, lx, y, 320, 20, parent, 0, hinst);
+    make(
+        "STATIC",
+        "Idle remaps (physical → sent)",
+        label_style,
+        lx,
+        y,
+        320,
+        20,
+        parent,
+        0,
+        hinst,
+    );
     y += 22;
     let btn = WS_CHILD.0 | WS_VISIBLE.0 | WS_TABSTOP.0 | BS_PUSHBUTTON;
     for i in 0..st.remaps.len() {
         let idx = i as i32;
-        let from_h = make("COMBOBOX", "", combo_style, lx, y, 120, 220, parent, ID_RM_FROM + idx * 2, hinst);
+        let from_h = make(
+            "COMBOBOX",
+            "",
+            combo_style,
+            lx,
+            y,
+            120,
+            220,
+            parent,
+            ID_RM_FROM + idx * 2,
+            hinst,
+        );
         combo_add(from_h, &st.remap_names);
-        make("STATIC", "→", label_style, lx + 126, y + 3, 14, 20, parent, 0, hinst);
-        let to_h = make("COMBOBOX", "", combo_style, lx + 144, y, 120, 220, parent, ID_RM_FROM + idx * 2 + 1, hinst);
+        make(
+            "STATIC",
+            "→",
+            label_style,
+            lx + 126,
+            y + 3,
+            14,
+            20,
+            parent,
+            0,
+            hinst,
+        );
+        let to_h = make(
+            "COMBOBOX",
+            "",
+            combo_style,
+            lx + 144,
+            y,
+            120,
+            220,
+            parent,
+            ID_RM_FROM + idx * 2 + 1,
+            hinst,
+        );
         combo_add(to_h, &st.remap_names);
-        make("BUTTON", "✕", btn, lx + 270, y, 26, 22, parent, ID_RM_DEL + idx, hinst);
+        make(
+            "BUTTON",
+            "✕",
+            btn,
+            lx + 270,
+            y,
+            26,
+            22,
+            parent,
+            ID_RM_DEL + idx,
+            hinst,
+        );
         y += rowh;
     }
     if st.remaps.len() < MAX_REMAPS {
-        make("BUTTON", "+ Add remap", btn, lx, y, 110, 24, parent, ID_RM_ADD, hinst);
+        make(
+            "BUTTON",
+            "+ Add remap",
+            btn,
+            lx,
+            y,
+            110,
+            24,
+            parent,
+            ID_RM_ADD,
+            hinst,
+        );
         y += rowh + 4;
     }
 
     // Float-rule section: exe / class / title substrings (any field optional).
     y += 6;
-    make("STATIC", "Float rules:  exe  /  class  /  title", label_style, lx, y, 340, 20, parent, 0, hinst);
+    make(
+        "STATIC",
+        "Float rules:  exe  /  class  /  title",
+        label_style,
+        lx,
+        y,
+        340,
+        20,
+        parent,
+        0,
+        hinst,
+    );
     y += 22;
     let edit_style = WS_CHILD.0 | WS_VISIBLE.0 | WS_BORDER.0 | WS_TABSTOP.0 | ES_AUTOHSCROLL;
     for i in 0..st.raw.tiling.float.len() {
         let idx = i as i32;
-        make("EDIT", "", edit_style, lx, y, 100, 20, parent, ID_FLOAT_EXE + idx * 3, hinst);
-        make("EDIT", "", edit_style, lx + 104, y, 100, 20, parent, ID_FLOAT_EXE + idx * 3 + 1, hinst);
-        make("EDIT", "", edit_style, lx + 208, y, 100, 20, parent, ID_FLOAT_EXE + idx * 3 + 2, hinst);
-        make("BUTTON", "✕", btn, lx + 312, y, 26, 22, parent, ID_FLOAT_DEL + idx, hinst);
+        make(
+            "EDIT",
+            "",
+            edit_style,
+            lx,
+            y,
+            100,
+            20,
+            parent,
+            ID_FLOAT_EXE + idx * 3,
+            hinst,
+        );
+        make(
+            "EDIT",
+            "",
+            edit_style,
+            lx + 104,
+            y,
+            100,
+            20,
+            parent,
+            ID_FLOAT_EXE + idx * 3 + 1,
+            hinst,
+        );
+        make(
+            "EDIT",
+            "",
+            edit_style,
+            lx + 208,
+            y,
+            100,
+            20,
+            parent,
+            ID_FLOAT_EXE + idx * 3 + 2,
+            hinst,
+        );
+        make(
+            "BUTTON",
+            "✕",
+            btn,
+            lx + 312,
+            y,
+            26,
+            22,
+            parent,
+            ID_FLOAT_DEL + idx,
+            hinst,
+        );
         y += rowh;
     }
     if st.raw.tiling.float.len() < MAX_FLOATS {
-        make("BUTTON", "+ Add float rule", btn, lx, y, 130, 24, parent, ID_FLOAT_ADD, hinst);
+        make(
+            "BUTTON",
+            "+ Add float rule",
+            btn,
+            lx,
+            y,
+            130,
+            24,
+            parent,
+            ID_FLOAT_ADD,
+            hinst,
+        );
         y += rowh + 4;
     }
 
     // Action buttons.
     y += 8;
     make("BUTTON", "Save", btn, lx, y, 80, 26, parent, ID_SAVE, hinst);
-    make("BUTTON", "Reload", btn, lx + 88, y, 90, 26, parent, ID_RELOAD, hinst);
-    make("BUTTON", "Start daemon", btn, lx + 186, y, 130, 26, parent, ID_DAEMON, hinst);
+    make(
+        "BUTTON",
+        "Reload",
+        btn,
+        lx + 88,
+        y,
+        90,
+        26,
+        parent,
+        ID_RELOAD,
+        hinst,
+    );
+    make(
+        "BUTTON",
+        "Start daemon",
+        btn,
+        lx + 186,
+        y,
+        130,
+        26,
+        parent,
+        ID_DAEMON,
+        hinst,
+    );
     y + 44 // content bottom, for window sizing
 }
 
@@ -391,9 +817,21 @@ unsafe fn sync_controls_from_state(parent: HWND) {
     }
     for (i, r) in st.raw.tiling.float.iter().enumerate() {
         let idx = i as i32;
-        set_edit(parent, ID_FLOAT_EXE + idx * 3, r.exe.as_deref().unwrap_or(""));
-        set_edit(parent, ID_FLOAT_EXE + idx * 3 + 1, r.class.as_deref().unwrap_or(""));
-        set_edit(parent, ID_FLOAT_EXE + idx * 3 + 2, r.title.as_deref().unwrap_or(""));
+        set_edit(
+            parent,
+            ID_FLOAT_EXE + idx * 3,
+            r.exe.as_deref().unwrap_or(""),
+        );
+        set_edit(
+            parent,
+            ID_FLOAT_EXE + idx * 3 + 1,
+            r.class.as_deref().unwrap_or(""),
+        );
+        set_edit(
+            parent,
+            ID_FLOAT_EXE + idx * 3 + 2,
+            r.title.as_deref().unwrap_or(""),
+        );
     }
 }
 
@@ -452,8 +890,17 @@ unsafe fn do_save(parent: HWND) {
 
     let result = st.raw.save(&st.path);
     let (title, body) = match &result {
-        Ok(()) => ("Saved", format!("Saved to {}\nApplies live to a running gkeyd.", st.path.display())),
-        Err(e) => ("Not saved", format!("Config is invalid, nothing written:\n\n{e}")),
+        Ok(()) => (
+            "Saved",
+            format!(
+                "Saved to {}\nApplies live to a running gkeyd.",
+                st.path.display()
+            ),
+        ),
+        Err(e) => (
+            "Not saved",
+            format!("Config is invalid, nothing written:\n\n{e}"),
+        ),
     };
     message_box(parent, title, &body);
 }
@@ -485,7 +932,11 @@ unsafe extern "system" fn collect_child(h: HWND, lp: LPARAM) -> BOOL {
 
 unsafe fn destroy_children(parent: HWND) {
     let mut v: Vec<HWND> = Vec::new();
-    let _ = EnumChildWindows(parent, Some(collect_child), LPARAM(&mut v as *mut _ as isize));
+    let _ = EnumChildWindows(
+        parent,
+        Some(collect_child),
+        LPARAM(&mut v as *mut _ as isize),
+    );
     for h in v {
         let _ = DestroyWindow(h);
     }
@@ -498,7 +949,15 @@ unsafe fn apply_font(parent: HWND) {
 
 unsafe fn fit_window(parent: HWND, content_bottom: i32) {
     use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOMOVE, SWP_NOZORDER};
-    let _ = SetWindowPos(parent, None, 0, 0, 380, content_bottom + 48, SWP_NOMOVE | SWP_NOZORDER);
+    let _ = SetWindowPos(
+        parent,
+        None,
+        0,
+        0,
+        380,
+        content_bottom + 48,
+        SWP_NOMOVE | SWP_NOZORDER,
+    );
 }
 
 /// Rebuild every control from the current model and resize to fit. Does NOT read
@@ -598,7 +1057,11 @@ unsafe fn on_captured(hwnd: HWND, scancode: u16, extended: bool) {
         combo_select(hwnd, field, &st.remap_names, &name);
     } else {
         drop(st);
-        message_box(hwnd, "Unsupported key", &format!("{name} can't be bound; pick from the list."));
+        message_box(
+            hwnd,
+            "Unsupported key",
+            &format!("{name} can't be bound; pick from the list."),
+        );
     }
 }
 
@@ -617,7 +1080,11 @@ unsafe fn daemon_pids() -> Vec<u32> {
     };
     if Process32FirstW(snap, &mut e).is_ok() {
         loop {
-            let len = e.szExeFile.iter().position(|&c| c == 0).unwrap_or(e.szExeFile.len());
+            let len = e
+                .szExeFile
+                .iter()
+                .position(|&c| c == 0)
+                .unwrap_or(e.szExeFile.len());
             let name = String::from_utf16_lossy(&e.szExeFile[..len]);
             if name.eq_ignore_ascii_case("gkeyd.exe") {
                 pids.push(e.th32ProcessID);
@@ -638,7 +1105,11 @@ unsafe fn start_daemon(parent: HWND) {
         .and_then(|p| p.parent().map(|d| d.join("gkeyd.exe")))
         .unwrap_or_else(|| PathBuf::from("gkeyd.exe"));
     if let Err(e) = std::process::Command::new(&exe).spawn() {
-        message_box(parent, "Start failed", &format!("Could not start {}:\n{e}", exe.display()));
+        message_box(
+            parent,
+            "Start failed",
+            &format!("Could not start {}:\n{e}", exe.display()),
+        );
     }
 }
 
@@ -654,7 +1125,11 @@ unsafe fn stop_daemon() {
 unsafe fn update_daemon_button(hwnd: HWND) {
     let running = !daemon_pids().is_empty();
     if let Ok(b) = GetDlgItem(hwnd, ID_DAEMON) {
-        let label = if running { "Stop daemon" } else { "Start daemon" };
+        let label = if running {
+            "Stop daemon"
+        } else {
+            "Start daemon"
+        };
         let _ = SetWindowTextW(b, PCWSTR(wide(label).as_ptr()));
     }
 }

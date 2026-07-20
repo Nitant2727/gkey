@@ -117,7 +117,9 @@ fn key_to_name() -> &'static HashMap<KeyCode, &'static str> {
 
 /// Parse a config key name (case-insensitive) into a physical key.
 pub fn parse(name: &str) -> Option<KeyCode> {
-    name_to_key().get(&name.trim().to_ascii_lowercase()).copied()
+    name_to_key()
+        .get(&name.trim().to_ascii_lowercase())
+        .copied()
 }
 
 /// All accepted key names, in table order (for GUI dropdowns).

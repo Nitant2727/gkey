@@ -89,14 +89,8 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
 pub fn install(tx: Sender<KeyEvent>) -> Result<HHOOK> {
     SENDER.with(|s| *s.borrow_mut() = Some(tx));
     let hmod = unsafe { GetModuleHandleW(None)? };
-    let hook = unsafe {
-        SetWindowsHookExW(
-            WH_KEYBOARD_LL,
-            Some(keyboard_proc),
-            HINSTANCE(hmod.0),
-            0,
-        )?
-    };
+    let hook =
+        unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), HINSTANCE(hmod.0), 0)? };
     Ok(hook)
 }
 

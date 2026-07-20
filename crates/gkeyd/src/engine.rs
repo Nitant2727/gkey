@@ -336,7 +336,9 @@ impl Engine {
         if self.uia.send(rtx).is_err() {
             return;
         }
-        let targets = rrx.recv_timeout(Duration::from_millis(600)).unwrap_or_default();
+        let targets = rrx
+            .recv_timeout(Duration::from_millis(600))
+            .unwrap_or_default();
         if targets.is_empty() {
             tracing::info!("UIA scan empty, falling back to grid");
             self.enter_hint_grid();
