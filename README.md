@@ -1,5 +1,10 @@
 <p align="center"><img src="assets/logo.svg" width="360" alt="gkey"></p>
 
+<p align="center">
+  <a href="https://github.com/Nitant2727/gkey/actions/workflows/ci.yml"><img src="https://github.com/Nitant2727/gkey/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
+</p>
+
 # gkey
 
 System-wide, keyboard-only control for Windows 11 — Vimium for the whole
