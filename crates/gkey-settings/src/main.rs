@@ -26,7 +26,7 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
-    EnumChildWindows, GetDlgItem, GetDlgItemTextW, GetMessageW, KillTimer, LoadCursorW,
+    EnumChildWindows, GetDlgItem, GetDlgItemTextW, GetMessageW, KillTimer, LoadCursorW, LoadIconW,
     PostMessageW, PostQuitMessage, RegisterClassW, SendMessageW, SetTimer, SetWindowsHookExW,
     SetWindowTextW, ShowWindow, TranslateMessage, UnhookWindowsHookEx, HHOOK, HMENU, IDC_ARROW,
     KBDLLHOOKSTRUCT, MSG, SW_SHOW, WH_KEYBOARD_LL, WINDOW_EX_STYLE, WINDOW_STYLE, WM_CLOSE,
@@ -766,6 +766,7 @@ fn main() -> windows::core::Result<()> {
             hInstance: hinst.into(),
             lpszClassName: PCWSTR(class.as_ptr()),
             hCursor: LoadCursorW(None, IDC_ARROW).unwrap_or_default(),
+            hIcon: LoadIconW(HINSTANCE(hinst.0), PCWSTR(1 as *const u16)).unwrap_or_default(),
             ..Default::default()
         };
         RegisterClassW(&wc);

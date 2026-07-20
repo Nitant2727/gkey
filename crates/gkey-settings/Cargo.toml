@@ -10,6 +10,9 @@ description = "Settings GUI for gkey — edits the config the daemon hot-reloads
 name = "gkey-settings"
 path = "src/main.rs"
 
+[build-dependencies]
+winresource = "0.1"
+
 [dependencies]
 gkey-core = { path = "../gkey-core" }
 
