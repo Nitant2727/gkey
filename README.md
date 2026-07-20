@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.svg" width="360" alt="gkey"></p>
+
 # gkey
 
 System-wide, keyboard-only control for Windows 11 — Vimium for the whole
@@ -151,8 +153,12 @@ settings GUI's Stop button), and read logs from
 - **M2 hardening** — runtime-verify hint mode broadly; add `IUIAutomation2`
   connection timeouts, cold-Chromium retry, occlusion/monitor filtering of
   hints, two-phase grid refinement.
-- **M3 tiling — next** — named/labeled workspaces; packaging (tray icon,
-  installer, a code-signing story for Smart App Control).
+- **M3 tiling — next** — named/labeled workspaces; packaging (an installer, a
+  matching settings-window icon, CI).
 
 > The GUI is native Win32, not a web/`egui` app, because Smart App Control on the
 > dev machine blocks running the build-script binaries those stacks require.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Logo/assets under [assets/](assets).
