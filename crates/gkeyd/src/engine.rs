@@ -384,9 +384,11 @@ impl Engine {
         if self.uia.send(rtx).is_err() {
             return;
         }
-        // The scanner retries cold accessibility trees, so allow for that.
+        // Big trees (Chromium pages) can take over a second to walk, and the
+        // scanner retries cold trees with pauses — a short timeout here would
+        // silently fall back to the grid even though elements exist.
         let points = rrx
-            .recv_timeout(Duration::from_millis(1200))
+            .recv_timeout(Duration::from_millis(3000))
             .unwrap_or_default();
         if points.is_empty() {
             tracing::info!("UIA scan empty, falling back to grid");

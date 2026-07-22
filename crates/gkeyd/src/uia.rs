@@ -20,15 +20,16 @@ use windows::Win32::UI::Accessibility::{
     UIA_ControlTypePropertyId, UIA_EditControlTypeId, UIA_HyperlinkControlTypeId,
     UIA_IsEnabledPropertyId, UIA_IsExpandCollapsePatternAvailablePropertyId,
     UIA_IsInvokePatternAvailablePropertyId, UIA_IsKeyboardFocusablePropertyId,
-    UIA_IsOffscreenPropertyId, UIA_IsSelectionItemPatternAvailablePropertyId,
-    UIA_IsTogglePatternAvailablePropertyId, UIA_ListItemControlTypeId, UIA_MenuItemControlTypeId,
-    UIA_RadioButtonControlTypeId, UIA_SplitButtonControlTypeId, UIA_TabItemControlTypeId,
-    UIA_TreeItemControlTypeId,
+    UIA_HeaderItemControlTypeId, UIA_IsOffscreenPropertyId,
+    UIA_IsSelectionItemPatternAvailablePropertyId, UIA_IsTogglePatternAvailablePropertyId,
+    UIA_ListItemControlTypeId, UIA_MenuItemControlTypeId, UIA_RadioButtonControlTypeId,
+    UIA_SliderControlTypeId, UIA_SpinnerControlTypeId, UIA_SplitButtonControlTypeId,
+    UIA_TabItemControlTypeId, UIA_TreeItemControlTypeId,
 };
 use windows::core::w;
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumThreadWindows, FindWindowExW, FindWindowW, GetForegroundWindow, GetWindowRect,
-    GetWindowThreadProcessId, IsWindowVisible,
+    EnumThreadWindows, EnumWindows, FindWindowExW, FindWindowW, GetForegroundWindow, GetWindow,
+    GetWindowRect, GetWindowThreadProcessId, IsWindowVisible, GW_OWNER,
 };
 
 /// Click points (physical screen pixels) of hintable elements.
@@ -46,7 +47,7 @@ fn build_condition(a: &IUIAutomation) -> Result<IUIAutomationCondition> {
         // Cheap, cacheable availability properties instead of probing patterns,
         // plus the control types that are clickable but often expose no pattern
         // (toolbar icons, menu items, list/tab/tree items, links).
-        let clickable: [(_, VARIANT); 16] = [
+        let clickable: [(_, VARIANT); 19] = [
             (UIA_IsKeyboardFocusablePropertyId, VARIANT::from(true)),
             (UIA_IsInvokePatternAvailablePropertyId, VARIANT::from(true)),
             (UIA_IsTogglePatternAvailablePropertyId, VARIANT::from(true)),
@@ -69,6 +70,9 @@ fn build_condition(a: &IUIAutomation) -> Result<IUIAutomationCondition> {
             (UIA_ControlTypePropertyId, VARIANT::from(UIA_RadioButtonControlTypeId.0)),
             (UIA_ControlTypePropertyId, VARIANT::from(UIA_ComboBoxControlTypeId.0)),
             (UIA_ControlTypePropertyId, VARIANT::from(UIA_EditControlTypeId.0)),
+            (UIA_ControlTypePropertyId, VARIANT::from(UIA_SliderControlTypeId.0)),
+            (UIA_ControlTypePropertyId, VARIANT::from(UIA_SpinnerControlTypeId.0)),
+            (UIA_ControlTypePropertyId, VARIANT::from(UIA_HeaderItemControlTypeId.0)),
         ];
 
         let mut or_cond: Option<IUIAutomationCondition> = None;
@@ -100,8 +104,24 @@ unsafe extern "system" fn collect_thread_window(hwnd: HWND, lparam: LPARAM) -> B
     TRUE
 }
 
+struct OwnedCtx {
+    owner: HWND,
+    out: Vec<HWND>,
+}
+
+unsafe extern "system" fn collect_owned_window(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let ctx = &mut *(lparam.0 as *mut OwnedCtx);
+    if IsWindowVisible(hwnd).as_bool()
+        && GetWindow(hwnd, GW_OWNER).map(|h| h == ctx.owner).unwrap_or(false)
+    {
+        ctx.out.push(hwnd);
+    }
+    TRUE
+}
+
 /// Foreground window plus visible popups/menus on the same thread (dropdowns,
-/// context menus and flyouts live in their own HWNDs).
+/// context menus and flyouts live in their own HWNDs) plus windows owned by
+/// the foreground window (dialogs and palettes can run on other threads).
 fn candidate_windows(fg: HWND) -> Vec<HWND> {
     let mut wins = vec![fg];
     unsafe {
@@ -117,6 +137,19 @@ fn candidate_windows(fg: HWND) -> Vec<HWND> {
                 if h != fg && !wins.contains(&h) {
                     wins.push(h);
                 }
+            }
+        }
+        let mut owned = OwnedCtx {
+            owner: fg,
+            out: Vec::new(),
+        };
+        let _ = EnumWindows(
+            Some(collect_owned_window),
+            LPARAM(&mut owned as *mut _ as isize),
+        );
+        for h in owned.out {
+            if !wins.contains(&h) {
+                wins.push(h);
             }
         }
     }
@@ -242,18 +275,27 @@ pub fn spawn() -> Sender<Sender<ScanReply>> {
                     }
                 };
             tracing::info!("UIA scanner ready");
-            while let Ok(reply) = rx.recv() {
-                let (app_count, mut result) = scan(&automation).unwrap_or_else(|e| {
+            while let Ok(mut reply) = rx.recv() {
+                // Serve only the newest request: older senders still queued
+                // mean the engine already gave up on them (timeout).
+                while let Ok(newer) = rx.try_recv() {
+                    reply = newer;
+                }
+                let (mut app_count, mut result) = scan(&automation).unwrap_or_else(|e| {
                     tracing::warn!("UIA scan failed: {e}");
                     (0, Vec::new())
                 });
-                // Chromium/Electron build their accessibility tree only once a
-                // client asks for it — the first scan of a cold window comes
-                // back sparse (often just the window chrome). Give it a beat,
-                // scan again, and merge both passes so nothing flickers away.
-                if app_count < RETRY_THRESHOLD {
-                    std::thread::sleep(std::time::Duration::from_millis(200));
-                    if let Ok((_, second)) = scan(&automation) {
+                // Chromium/Electron/XAML build their accessibility tree only
+                // once a client asks for it — the first scans of a cold window
+                // come back sparse (often just the window chrome). Rescan with
+                // growing pauses, merging passes so nothing flickers away.
+                for pause_ms in [150u64, 300, 450] {
+                    if app_count >= RETRY_THRESHOLD {
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(pause_ms));
+                    if let Ok((second_count, second)) = scan(&automation) {
+                        app_count = app_count.max(second_count);
                         result.extend(second);
                         result = dedup(result);
                     }
