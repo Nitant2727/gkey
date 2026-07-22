@@ -59,6 +59,38 @@ Once you have a trusted cert, `scripts/sign.ps1` signs all three exes with an
 RSA + SHA-256 + RFC-3161 timestamp (the shape SAC wants). See that script's
 header for the exact invocation for a PFX or for Azure Trusted Signing.
 
+## UIAccess install (overlay above Start/Search)
+
+The shell's Start menu, Search, and Action Center flyouts live in a z-band
+above every normal topmost window, so hint labels drawn over them are
+invisible — unless the daemon has **UIAccess** (the privilege the On-Screen
+Keyboard and Magnifier use). Windows grants it only when the exe (1) requests
+it in its manifest, (2) is signed with a machine-trusted certificate, and
+(3) runs from Program Files.
+
+One-time setup, from an **elevated** PowerShell:
+
+```powershell
+cd <repo>
+$env:GKEY_UIACCESS = '1'
+cargo build --release
+scripts\install.ps1
+```
+
+The script creates a local self-signed code-signing cert (first run only),
+trusts it (LocalMachine Root + TrustedPublisher — local key, nothing external),
+signs the binaries, installs to `C:\Program Files\gkey\`, and restarts the
+daemon de-elevated. Verify with the log line `UIAccess: true`.
+
+Notes:
+- A `GKEY_UIACCESS=1` build refuses to start outside Program Files
+  ("A referral was returned from the server") — that's the OS enforcing
+  UIAccess rules, not a bug. Build without the env var for `cargo run` dev.
+- This is separate from SAC: SAC ignores self-signed certs, so with SAC ON
+  you'd still need path B for the *SAC* half. With SAC off (path A), the
+  self-signed cert is enough for UIAccess.
+- Remove everything: `scripts\install.ps1 -Uninstall`.
+
 ## What does NOT work
 
 - Self-signed certs (even added to Trusted Root / Trusted Publishers) — SAC uses

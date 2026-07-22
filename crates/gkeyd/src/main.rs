@@ -42,6 +42,32 @@ unsafe extern "system" fn ctrl_handler(_ctrl_type: u32) -> BOOL {
     FALSE // let the default handler proceed to terminate the process
 }
 
+/// Whether the OS granted this process UIAccess (signed exe in a secure
+/// location with a uiAccess manifest). With it, the overlay can draw above
+/// the shell's Start/Search flyouts.
+fn has_uiaccess() -> bool {
+    use windows::Win32::Security::{GetTokenInformation, TokenUIAccess, TOKEN_QUERY};
+    use windows::Win32::System::Threading::OpenProcessToken;
+    unsafe {
+        let mut token = windows::Win32::Foundation::HANDLE::default();
+        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token).is_err() {
+            return false;
+        }
+        let mut val: u32 = 0;
+        let mut len: u32 = 0;
+        let ok = GetTokenInformation(
+            token,
+            TokenUIAccess,
+            Some(&mut val as *mut u32 as *mut _),
+            std::mem::size_of::<u32>() as u32,
+            &mut len,
+        )
+        .is_ok();
+        let _ = windows::Win32::Foundation::CloseHandle(token);
+        ok && val != 0
+    }
+}
+
 /// Launch the crash-restore watcher (next to this exe), passing our PID.
 fn spawn_watcher() {
     let exe = std::env::current_exe()
@@ -133,6 +159,11 @@ fn main() -> Result<()> {
         .with_writer(writer)
         .init();
     tracing::info!("gkey daemon starting; logging to {}", log_dir.display());
+    tracing::info!(
+        "UIAccess: {} (overlay {} draw over Start/Search)",
+        has_uiaccess(),
+        if has_uiaccess() { "can" } else { "cannot" }
+    );
 
     // Per-monitor DPI v2 so cursor coordinates are true physical pixels across
     // mixed-DPI monitors (matters once overlays/hints land).
