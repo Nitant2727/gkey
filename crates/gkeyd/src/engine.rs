@@ -26,6 +26,11 @@ struct Engine {
     config: Config,
     overlay: Sender<UiCmd>,
     uia: Sender<Sender<ScanReply>>,
+    /// Engine-owned sender the scanner replies on; results arrive in the main
+    /// select loop so keys are never blocked while a scan runs.
+    uia_reply_tx: Sender<ScanReply>,
+    /// When a scan was requested; None when no scan is outstanding.
+    uia_pending: Option<Instant>,
     fast: bool,
     /// Active hint session (empty when not in hint mode).
     session: Vec<Hint>,
@@ -62,10 +67,13 @@ pub fn run(
     overlay: Sender<UiCmd>,
     uia: Sender<Sender<ScanReply>>,
 ) {
+    let (uia_reply_tx, uia_reply_rx) = unbounded::<ScanReply>();
     let mut eng = Engine {
         config,
         overlay,
         uia,
+        uia_reply_tx,
+        uia_pending: None,
         fast: false,
         session: Vec::new(),
         prefix: String::new(),
@@ -89,6 +97,9 @@ pub fn run(
             recv(reload_rx) -> msg => if let Ok(cfg) = msg {
                 eng.config = cfg;
                 tracing::info!("config reloaded");
+            },
+            recv(uia_reply_rx) -> msg => if let Ok(points) = msg {
+                eng.on_scan_reply(points);
             },
             recv(ticker) -> _ => eng.reconcile(),
         }
@@ -379,17 +390,25 @@ impl Engine {
         tracing::info!("→ hint mode ({} targets)", self.session.len());
     }
 
+    /// Request a scan without blocking: the reply lands in the main select
+    /// loop (`on_scan_reply`), so keys stay responsive while the scan runs.
     fn enter_hint_uia(&mut self) {
-        let (rtx, rrx) = unbounded::<ScanReply>();
-        if self.uia.send(rtx).is_err() {
+        if let Some(since) = self.uia_pending {
+            if since.elapsed() < Duration::from_millis(3000) {
+                return; // scan already underway — don't stack requests
+            }
+        }
+        if self.uia.send(self.uia_reply_tx.clone()).is_ok() {
+            self.uia_pending = Some(Instant::now());
+        }
+    }
+
+    /// A finished UIA scan. Only act if we're still waiting for it and the
+    /// user hasn't since moved on (started a grid session, left normal mode).
+    fn on_scan_reply(&mut self, points: ScanReply) {
+        if self.uia_pending.take().is_none() || state::mode() != Mode::Normal {
             return;
         }
-        // Big trees (Chromium pages) can take over a second to walk, and the
-        // scanner retries cold trees with pauses — a short timeout here would
-        // silently fall back to the grid even though elements exist.
-        let points = rrx
-            .recv_timeout(Duration::from_millis(3000))
-            .unwrap_or_default();
         if points.is_empty() {
             tracing::info!("UIA scan empty, falling back to grid");
             self.enter_hint_grid();

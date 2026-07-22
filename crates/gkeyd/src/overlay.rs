@@ -25,8 +25,9 @@ use windows::Win32::Graphics::Gdi::{
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, GetSystemMetrics, RegisterClassW, SetLayeredWindowAttributes,
-    ShowWindow, HMENU, LWA_COLORKEY, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
-    SM_YVIRTUALSCREEN, SW_HIDE, SW_SHOWNOACTIVATE, WINDOW_EX_STYLE, WNDCLASSW, WS_EX_LAYERED,
+    SetWindowPos, ShowWindow, HMENU, HWND_TOPMOST, LWA_COLORKEY, SM_CXVIRTUALSCREEN,
+    SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SWP_NOACTIVATE, SWP_NOMOVE,
+    SWP_NOSIZE, SWP_SHOWWINDOW, SW_HIDE, WINDOW_EX_STYLE, WNDCLASSW, WS_EX_LAYERED,
     WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
 };
 
@@ -254,9 +255,22 @@ pub fn spawn() -> Sender<UiCmd> {
                     let show =
                         !HINTS.lock().unwrap().is_empty() || INDICATOR.lock().unwrap().is_some();
                     unsafe {
-                        let _ = ShowWindow(hwnd, if show { SW_SHOWNOACTIVATE } else { SW_HIDE });
                         if show {
+                            // Re-assert topmost on every show — the shell and
+                            // other topmost windows (taskbar flyouts, tooltips)
+                            // can slip above us between hint sessions.
+                            let _ = SetWindowPos(
+                                hwnd,
+                                HWND_TOPMOST,
+                                0,
+                                0,
+                                0,
+                                0,
+                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                            );
                             let _ = InvalidateRect(hwnd, None, true);
+                        } else {
+                            let _ = ShowWindow(hwnd, SW_HIDE);
                         }
                     }
                 }

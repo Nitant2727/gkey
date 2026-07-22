@@ -228,7 +228,11 @@ fn dedup(mut points: ScanReply) -> ScanReply {
 /// Scan the foreground app and the taskbar. Returns the number of points that
 /// came from the app itself (the retry heuristic must ignore the taskbar's
 /// always-present buttons) plus the merged, de-duplicated point list.
-fn scan(a: &IUIAutomation) -> Result<(usize, ScanReply)> {
+fn scan(
+    a: &IUIAutomation,
+    cond: &IUIAutomationCondition,
+    cache: &IUIAutomationCacheRequest,
+) -> Result<(usize, ScanReply)> {
     unsafe {
         let fg = GetForegroundWindow();
         let app_wins = if fg.0.is_null() {
@@ -236,20 +240,15 @@ fn scan(a: &IUIAutomation) -> Result<(usize, ScanReply)> {
         } else {
             candidate_windows(fg)
         };
-        let cond = build_condition(a)?;
-        let cache = a.CreateCacheRequest()?;
-        cache.AddProperty(UIA_BoundingRectanglePropertyId)?;
-        cache.SetTreeScope(TreeScope(TreeScope_Element.0 | TreeScope_Descendants.0))?;
-
         let mut out = ScanReply::new();
         for hwnd in &app_wins {
             // A failing popup shouldn't abort the whole scan.
-            let _ = scan_window(a, &cond, &cache, *hwnd, &mut out);
+            let _ = scan_window(a, cond, cache, *hwnd, &mut out);
         }
         let app_count = out.len();
         for hwnd in taskbar_windows() {
             if !app_wins.contains(&hwnd) {
-                let _ = scan_window(a, &cond, &cache, hwnd, &mut out);
+                let _ = scan_window(a, cond, cache, hwnd, &mut out);
             }
         }
         Ok((app_count, dedup(out)))
@@ -274,33 +273,61 @@ pub fn spawn() -> Sender<Sender<ScanReply>> {
                         return;
                     }
                 };
+            let (cond, cache) = match (|| -> Result<_> {
+                let cond = build_condition(&automation)?;
+                let cache = unsafe {
+                    let c = automation.CreateCacheRequest()?;
+                    c.AddProperty(UIA_BoundingRectanglePropertyId)?;
+                    c.SetTreeScope(TreeScope(TreeScope_Element.0 | TreeScope_Descendants.0))?;
+                    c
+                };
+                Ok((cond, cache))
+            })() {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::error!("failed to build UIA condition: {e}");
+                    return;
+                }
+            };
             tracing::info!("UIA scanner ready");
             while let Ok(mut reply) = rx.recv() {
                 // Serve only the newest request: older senders still queued
-                // mean the engine already gave up on them (timeout).
+                // mean the engine already gave up on them.
                 while let Ok(newer) = rx.try_recv() {
                     reply = newer;
                 }
-                let (mut app_count, mut result) = scan(&automation).unwrap_or_else(|e| {
-                    tracing::warn!("UIA scan failed: {e}");
-                    (0, Vec::new())
-                });
+                let started = std::time::Instant::now();
+                let (mut app_count, mut result) =
+                    scan(&automation, &cond, &cache).unwrap_or_else(|e| {
+                        tracing::warn!("UIA scan failed: {e}");
+                        (0, Vec::new())
+                    });
                 // Chromium/Electron/XAML build their accessibility tree only
                 // once a client asks for it — the first scans of a cold window
-                // come back sparse (often just the window chrome). Rescan with
-                // growing pauses, merging passes so nothing flickers away.
-                for pause_ms in [150u64, 300, 450] {
+                // come back sparse (often just the window chrome). Rescan and
+                // merge, but stop as soon as the result stops growing so warm
+                // windows stay fast.
+                for pause_ms in [150u64, 350] {
                     if app_count >= RETRY_THRESHOLD {
                         break;
                     }
                     std::thread::sleep(std::time::Duration::from_millis(pause_ms));
-                    if let Ok((second_count, second)) = scan(&automation) {
-                        app_count = app_count.max(second_count);
-                        result.extend(second);
-                        result = dedup(result);
+                    let Ok((second_count, second)) = scan(&automation, &cond, &cache) else {
+                        break;
+                    };
+                    app_count = app_count.max(second_count);
+                    let before = result.len();
+                    result.extend(second);
+                    result = dedup(result);
+                    if result.len() <= before && !result.is_empty() {
+                        break; // stable — window is genuinely sparse
                     }
                 }
-                tracing::info!("UIA scan: {} target(s)", result.len());
+                tracing::info!(
+                    "UIA scan: {} target(s) in {}ms",
+                    result.len(),
+                    started.elapsed().as_millis()
+                );
                 let _ = reply.send(result);
             }
         })
