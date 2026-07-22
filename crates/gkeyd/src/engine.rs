@@ -41,7 +41,15 @@ struct Engine {
     last_activity: Instant,
     /// Number keys 1–9 → workspace index 0–8.
     digit_ws: HashMap<KeyCode, usize>,
+    /// Remaining grid refinement steps for the active hint session.
+    refine_left: u8,
 }
+
+/// Sub-grid used when refining a coarse grid cell, and the smallest cell worth
+/// refining rather than clicking outright.
+const REFINE_COLS: i32 = 3;
+const REFINE_ROWS: i32 = 3;
+const MIN_REFINE_PX: i32 = 36;
 
 /// Drop out of normal/hint mode after this long with no key activity — recovers
 /// from a mode left stuck by e.g. Win+L swallowing the key-ups.
@@ -69,6 +77,7 @@ pub fn run(
         digit_ws: (1..=9)
             .filter_map(|i| keys::parse(&i.to_string()).map(|k| (k, i - 1)))
             .collect(),
+        refine_left: 0,
     };
     let ticker = tick(Duration::from_secs(1));
     loop {
@@ -287,8 +296,23 @@ impl Engine {
                 self.prefix.pop(); // dead end — ignore rather than cancel
             }
             1 => {
-                let (cx, cy) = (matches[0].cx, matches[0].cy);
-                self.select(cx, cy);
+                let h = matches[0].clone();
+                // A coarse grid cell refines into a finer grid instead of
+                // clicking, so the screen never fills with labels at once.
+                if self.refine_left > 0 && h.w >= MIN_REFINE_PX && h.h >= MIN_REFINE_PX {
+                    self.refine_left -= 1;
+                    let sub = hints::grid_cells(
+                        h.cx - h.w / 2,
+                        h.cy - h.h / 2,
+                        h.w,
+                        h.h,
+                        REFINE_COLS,
+                        REFINE_ROWS,
+                    );
+                    self.begin_hint(sub);
+                } else {
+                    self.select(h.cx, h.cy);
+                }
             }
             _ => self.refilter(),
         }
@@ -318,12 +342,12 @@ impl Engine {
         self.prefix.clear();
     }
 
-    fn begin_hint(&mut self, targets: Vec<(i32, i32)>) {
+    fn begin_hint(&mut self, targets: Vec<hints::Target>) {
         if targets.is_empty() {
             tracing::info!("no hint targets found");
             return;
         }
-        let hints = hints::build_with(&targets, &self.config.hint_chars);
+        let hints = hints::build(&targets, &self.config.hint_chars);
         let _ = self.overlay.send(UiCmd::Show(hints.clone()));
         self.session = hints;
         self.prefix.clear();
@@ -336,20 +360,25 @@ impl Engine {
         if self.uia.send(rtx).is_err() {
             return;
         }
-        let targets = rrx
-            .recv_timeout(Duration::from_millis(600))
+        // The scanner retries cold accessibility trees, so allow for that.
+        let points = rrx
+            .recv_timeout(Duration::from_millis(1200))
             .unwrap_or_default();
-        if targets.is_empty() {
+        if points.is_empty() {
             tracing::info!("UIA scan empty, falling back to grid");
             self.enter_hint_grid();
             return;
         }
-        self.begin_hint(targets);
+        self.refine_left = 0; // element hints are exact — never refine
+        self.begin_hint(hints::point_targets(&points));
     }
 
     fn enter_hint_grid(&mut self) {
-        let (w, h) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
-        let targets = hints::grid_targets(0, 0, w, h, 120);
+        let (l, t, w, h) = crate::tiling::cursor_work_area().unwrap_or_else(|| unsafe {
+            (0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN))
+        });
+        let targets = hints::grid_cells(l, t, w, h, self.config.grid_cols, self.config.grid_rows);
+        self.refine_left = u8::from(self.config.grid_refine);
         self.begin_hint(targets);
     }
 }

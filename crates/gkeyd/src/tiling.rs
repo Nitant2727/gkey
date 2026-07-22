@@ -120,6 +120,13 @@ fn work_area(mon: HMONITOR) -> Option<RECT> {
     }
 }
 
+/// Work area (left, top, width, height) of the monitor under the cursor —
+/// used by hint grid mode so the grid covers the right screen.
+pub fn cursor_work_area() -> Option<(i32, i32, i32, i32)> {
+    let r = work_area(cursor_monitor())?;
+    Some((r.left, r.top, r.right - r.left, r.bottom - r.top))
+}
+
 fn cursor_monitor() -> HMONITOR {
     let mut p = POINT::default();
     unsafe {

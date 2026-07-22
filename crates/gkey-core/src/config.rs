@@ -144,6 +144,12 @@ pub struct HintRaw {
     pub exit: String,
     /// Delete the last typed label character.
     pub backspace: String,
+    /// Grid mode: coarse grid dimensions (keep small — one label per cell).
+    pub grid_cols: i32,
+    pub grid_rows: i32,
+    /// After picking a coarse cell, subdivide it once into a finer grid
+    /// instead of clicking straight away.
+    pub grid_refine: bool,
 }
 
 impl Default for General {
@@ -200,6 +206,9 @@ impl Default for HintRaw {
             chars: "sadfjklewcmpgh".into(),
             exit: "Escape".into(),
             backspace: "Backspace".into(),
+            grid_cols: 8,
+            grid_rows: 5,
+            grid_refine: true,
         }
     }
 }
@@ -273,6 +282,10 @@ pub struct Config {
     pub hint_chars: Vec<char>,
     pub hint_exit: KeyCode,
     pub hint_backspace: KeyCode,
+    /// Grid-mode geometry and refinement.
+    pub grid_cols: i32,
+    pub grid_rows: i32,
+    pub grid_refine: bool,
 
     pub remaps: HashMap<KeyCode, KeyCode>,
 }
@@ -390,6 +403,9 @@ impl Config {
             hint_chars,
             hint_exit: key(&raw.hint.exit, "hint.exit")?,
             hint_backspace: key(&raw.hint.backspace, "hint.backspace")?,
+            grid_cols: raw.hint.grid_cols.clamp(2, 26),
+            grid_rows: raw.hint.grid_rows.clamp(2, 26),
+            grid_refine: raw.hint.grid_refine,
             remaps,
         })
     }

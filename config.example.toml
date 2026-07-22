@@ -49,6 +49,9 @@ exit        = "Escape"    # leave normal mode (activation key also toggles)
 chars     = "sadfjklewcmpgh"  # alphabet used to build labels
 exit      = "Escape"          # cancel
 backspace = "Backspace"       # delete last typed label character
+grid_cols = 8             # grid mode: coarse columns (fewer = fewer labels)
+grid_rows = 5             # grid mode: coarse rows
+grid_refine = true        # pick a cell, then a 3x3 inside it, then click
 
 [tiling]
 auto = false              # live: retile when windows open/close/minimize
