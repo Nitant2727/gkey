@@ -25,9 +25,10 @@ use windows::Win32::UI::Accessibility::{
     UIA_RadioButtonControlTypeId, UIA_SplitButtonControlTypeId, UIA_TabItemControlTypeId,
     UIA_TreeItemControlTypeId,
 };
+use windows::core::w;
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumThreadWindows, GetForegroundWindow, GetWindowRect, GetWindowThreadProcessId,
-    IsWindowVisible,
+    EnumThreadWindows, FindWindowExW, FindWindowW, GetForegroundWindow, GetWindowRect,
+    GetWindowThreadProcessId, IsWindowVisible,
 };
 
 /// Click points (physical screen pixels) of hintable elements.
@@ -35,6 +36,10 @@ pub type ScanReply = Vec<(i32, i32)>;
 
 /// Merge hints whose centres are within this many pixels of each other.
 const DEDUP_PX: i32 = 12;
+
+/// Below this many results the tree is likely still building (Chromium/Electron
+/// build accessibility lazily) — wait and scan again, merging both passes.
+const RETRY_THRESHOLD: usize = 6;
 
 fn build_condition(a: &IUIAutomation) -> Result<IUIAutomationCondition> {
     unsafe {
@@ -118,6 +123,35 @@ fn candidate_windows(fg: HWND) -> Vec<HWND> {
     wins
 }
 
+/// The taskbar lives in its own process and is never the foreground window, so
+/// it must be scanned explicitly: primary bar, per-monitor secondary bars, and
+/// the tray-overflow flyout.
+fn taskbar_windows() -> Vec<HWND> {
+    let mut out = Vec::new();
+    unsafe {
+        let mut push = |h: HWND| {
+            if !h.0.is_null() && IsWindowVisible(h).as_bool() && !out.contains(&h) {
+                out.push(h);
+            }
+        };
+        if let Ok(h) = FindWindowW(w!("Shell_TrayWnd"), None) {
+            push(h);
+        }
+        let mut prev = HWND::default();
+        while let Ok(h) = FindWindowExW(None, prev, w!("Shell_SecondaryTrayWnd"), None) {
+            if h.0.is_null() {
+                break;
+            }
+            push(h);
+            prev = h;
+        }
+        if let Ok(h) = FindWindowW(w!("TopLevelWindowForOverflowXamlIsland"), None) {
+            push(h);
+        }
+    }
+    out
+}
+
 fn scan_window(
     a: &IUIAutomation,
     cond: &IUIAutomationCondition,
@@ -158,23 +192,34 @@ fn dedup(mut points: ScanReply) -> ScanReply {
     kept
 }
 
-fn scan(a: &IUIAutomation) -> Result<ScanReply> {
+/// Scan the foreground app and the taskbar. Returns the number of points that
+/// came from the app itself (the retry heuristic must ignore the taskbar's
+/// always-present buttons) plus the merged, de-duplicated point list.
+fn scan(a: &IUIAutomation) -> Result<(usize, ScanReply)> {
     unsafe {
         let fg = GetForegroundWindow();
-        if fg.0.is_null() {
-            return Ok(Vec::new());
-        }
+        let app_wins = if fg.0.is_null() {
+            Vec::new()
+        } else {
+            candidate_windows(fg)
+        };
         let cond = build_condition(a)?;
         let cache = a.CreateCacheRequest()?;
         cache.AddProperty(UIA_BoundingRectanglePropertyId)?;
         cache.SetTreeScope(TreeScope(TreeScope_Element.0 | TreeScope_Descendants.0))?;
 
         let mut out = ScanReply::new();
-        for hwnd in candidate_windows(fg) {
+        for hwnd in &app_wins {
             // A failing popup shouldn't abort the whole scan.
-            let _ = scan_window(a, &cond, &cache, hwnd, &mut out);
+            let _ = scan_window(a, &cond, &cache, *hwnd, &mut out);
         }
-        Ok(dedup(out))
+        let app_count = out.len();
+        for hwnd in taskbar_windows() {
+            if !app_wins.contains(&hwnd) {
+                let _ = scan_window(a, &cond, &cache, hwnd, &mut out);
+            }
+        }
+        Ok((app_count, dedup(out)))
     }
 }
 
@@ -198,19 +243,19 @@ pub fn spawn() -> Sender<Sender<ScanReply>> {
                 };
             tracing::info!("UIA scanner ready");
             while let Ok(reply) = rx.recv() {
-                let mut result = scan(&automation).unwrap_or_else(|e| {
+                let (app_count, mut result) = scan(&automation).unwrap_or_else(|e| {
                     tracing::warn!("UIA scan failed: {e}");
-                    Vec::new()
+                    (0, Vec::new())
                 });
                 // Chromium/Electron build their accessibility tree only once a
-                // client asks for it — the first scan of a cold window comes back
-                // nearly empty. Give it a beat and try once more.
-                if result.len() <= 1 {
-                    std::thread::sleep(std::time::Duration::from_millis(180));
-                    if let Ok(second) = scan(&automation) {
-                        if second.len() > result.len() {
-                            result = second;
-                        }
+                // client asks for it — the first scan of a cold window comes
+                // back sparse (often just the window chrome). Give it a beat,
+                // scan again, and merge both passes so nothing flickers away.
+                if app_count < RETRY_THRESHOLD {
+                    std::thread::sleep(std::time::Duration::from_millis(200));
+                    if let Ok((_, second)) = scan(&automation) {
+                        result.extend(second);
+                        result = dedup(result);
                     }
                 }
                 tracing::info!("UIA scan: {} target(s)", result.len());

@@ -203,7 +203,7 @@ impl Default for NormalRaw {
 impl Default for HintRaw {
     fn default() -> Self {
         Self {
-            chars: "sadfjklewcmpgh".into(),
+            chars: "sadjklewcmph".into(),
             exit: "Escape".into(),
             backspace: "Backspace".into(),
             grid_cols: 8,
@@ -364,15 +364,27 @@ impl Config {
             Some(key(&n.faster, "normal.faster")?)
         };
 
+        // The hint/grid trigger letters are excluded from the label alphabet:
+        // in hint mode they re-trigger a fresh scan, so they must never be
+        // interpreted as label input.
+        let reserved: Vec<char> = [&n.hint, &n.grid]
+            .iter()
+            .filter_map(|s| {
+                let s = s.trim();
+                (s.len() == 1).then(|| s.chars().next().unwrap().to_ascii_lowercase())
+            })
+            .collect();
         let mut hint_chars: Vec<char> = Vec::new();
         for c in raw.hint.chars.chars() {
             let c = c.to_ascii_lowercase();
-            if c.is_ascii_alphabetic() && !hint_chars.contains(&c) {
+            if c.is_ascii_alphabetic() && !hint_chars.contains(&c) && !reserved.contains(&c) {
                 hint_chars.push(c);
             }
         }
         if hint_chars.len() < 2 {
-            anyhow::bail!("hint.chars must contain at least 2 distinct letters");
+            anyhow::bail!(
+                "hint.chars must contain at least 2 distinct letters (the hint/grid trigger keys are reserved)"
+            );
         }
 
         let mut remaps = HashMap::new();

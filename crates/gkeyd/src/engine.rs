@@ -280,7 +280,25 @@ impl Engine {
         if repeat {
             return; // don't let a held letter re-append
         }
-        let Some(ch) = letter_of(ev.key) else {
+        // A key outside the label alphabet can't be label input (trigger
+        // letters are excluded from the alphabet at config resolve). If it is
+        // the hint/grid binding, restart the session with a fresh scan —
+        // elements may have appeared or moved since; anything else is ignored.
+        let label_char = letter_of(ev.key).filter(|c| self.config.hint_chars.contains(c));
+        let Some(ch) = label_char else {
+            match self.config.normal_map.get(&ev.key) {
+                Some(Action::Hint) => {
+                    self.end_hint();
+                    state::set_mode(Mode::Normal);
+                    self.enter_hint_uia();
+                }
+                Some(Action::Grid) => {
+                    self.end_hint();
+                    state::set_mode(Mode::Normal);
+                    self.enter_hint_grid();
+                }
+                _ => {}
+            }
             return;
         };
         self.prefix.push(ch);
@@ -319,11 +337,17 @@ impl Engine {
     }
 
     fn refilter(&mut self) {
+        // Show only the still-matching hints, with the typed prefix stripped so
+        // the label always reads "what's left to type".
         let filtered: Vec<Hint> = self
             .session
             .iter()
             .filter(|h| h.label.starts_with(&self.prefix))
-            .cloned()
+            .map(|h| {
+                let mut h = h.clone();
+                h.label = h.label[self.prefix.len()..].to_string();
+                h
+            })
             .collect();
         let _ = self.overlay.send(UiCmd::Show(filtered));
     }

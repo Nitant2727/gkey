@@ -46,7 +46,8 @@ promote     = ""          # make focused window the master tile
 exit        = "Escape"    # leave normal mode (activation key also toggles)
 
 [hint]                    # hint mode
-chars     = "sadfjklewcmpgh"  # alphabet used to build labels
+chars     = "sadjklewcmph"    # label alphabet (hint/grid trigger letters are
+                              # auto-excluded — pressing them rescans instead)
 exit      = "Escape"          # cancel
 backspace = "Backspace"       # delete last typed label character
 grid_cols = 8             # grid mode: coarse columns (fewer = fewer labels)
