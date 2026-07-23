@@ -302,33 +302,50 @@ pub fn spawn() -> Sender<Sender<ScanReply>> {
                         tracing::warn!("UIA scan failed: {e}");
                         (0, Vec::new())
                     });
-                // Chromium/Electron/XAML build their accessibility tree only
-                // once a client asks for it — the first scans of a cold window
-                // come back sparse (often just the window chrome). Rescan and
-                // merge, but stop as soon as the result stops growing so warm
-                // windows stay fast.
-                for pause_ms in [150u64, 350] {
-                    if app_count >= RETRY_THRESHOLD {
-                        break;
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(pause_ms));
-                    let Ok((second_count, second)) = scan(&automation, &cond, &cache) else {
-                        break;
-                    };
-                    app_count = app_count.max(second_count);
-                    let before = result.len();
-                    result.extend(second);
-                    result = dedup(result);
-                    if result.len() <= before && !result.is_empty() {
-                        break; // stable — window is genuinely sparse
-                    }
-                }
+                // Send the first pass immediately — hints appear with no
+                // added latency — then keep warming the tree in the
+                // background. Chromium/Electron/XAML build accessibility
+                // lazily, and a browser's own toolbar can look "plenty" while
+                // the page (Meet, Gmail, …) is still empty; growth-based
+                // resends upgrade the hint session as content fills in.
                 tracing::info!(
                     "UIA scan: {} target(s) in {}ms",
                     result.len(),
                     started.elapsed().as_millis()
                 );
-                let _ = reply.send(result);
+                let mut sent_len = result.len();
+                let _ = reply.send(result.clone());
+                for pause_ms in [250u64, 450, 700] {
+                    std::thread::sleep(std::time::Duration::from_millis(pause_ms));
+                    // A newer request supersedes this warm-up entirely.
+                    if let Ok(newer) = rx.try_recv() {
+                        reply = newer;
+                        let (c, r) = scan(&automation, &cond, &cache).unwrap_or((0, Vec::new()));
+                        app_count = c;
+                        result = r;
+                        tracing::info!("UIA rescan: {} target(s)", result.len());
+                        sent_len = result.len();
+                        let _ = reply.send(result.clone());
+                        continue;
+                    }
+                    let Ok((second_count, second)) = scan(&automation, &cond, &cache) else {
+                        break;
+                    };
+                    app_count = app_count.max(second_count);
+                    result.extend(second);
+                    result = dedup(result);
+                    if result.len() > sent_len {
+                        tracing::info!(
+                            "UIA scan grew: {} target(s) in {}ms",
+                            result.len(),
+                            started.elapsed().as_millis()
+                        );
+                        sent_len = result.len();
+                        let _ = reply.send(result.clone());
+                    } else if app_count >= RETRY_THRESHOLD {
+                        break; // warm and stable — stop burning scans
+                    }
+                }
             }
         })
         .expect("spawn uia thread");

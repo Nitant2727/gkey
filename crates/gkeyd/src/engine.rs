@@ -31,6 +31,9 @@ struct Engine {
     uia_reply_tx: Sender<ScanReply>,
     /// When a scan was requested; None when no scan is outstanding.
     uia_pending: Option<Instant>,
+    /// Whether the current hint session shows UIA element hints (as opposed to
+    /// grid cells) — only such sessions accept late scan upgrades.
+    session_uia: bool,
     fast: bool,
     /// Active hint session (empty when not in hint mode).
     session: Vec<Hint>,
@@ -74,6 +77,7 @@ pub fn run(
         uia,
         uia_reply_tx,
         uia_pending: None,
+        session_uia: false,
         fast: false,
         session: Vec::new(),
         prefix: String::new(),
@@ -338,6 +342,7 @@ impl Engine {
                         REFINE_COLS,
                         REFINE_ROWS,
                     );
+                    self.session_uia = false;
                     self.begin_hint(sub);
                 } else {
                     self.select(h.cx, h.cy);
@@ -403,19 +408,35 @@ impl Engine {
         }
     }
 
-    /// A finished UIA scan. Only act if we're still waiting for it and the
-    /// user hasn't since moved on (started a grid session, left normal mode).
+    /// A finished (or grown — the scanner keeps warming cold trees and
+    /// resends) UIA scan.
     fn on_scan_reply(&mut self, points: ScanReply) {
-        if self.uia_pending.take().is_none() || state::mode() != Mode::Normal {
-            return;
+        match state::mode() {
+            // The reply we're waiting for.
+            Mode::Normal if self.uia_pending.is_some() => {
+                self.uia_pending = None;
+                if points.is_empty() {
+                    tracing::info!("UIA scan empty, falling back to grid");
+                    self.enter_hint_grid();
+                    return;
+                }
+                self.refine_left = 0; // element hints are exact — never refine
+                self.session_uia = true;
+                self.begin_hint(hints::point_targets(&points));
+            }
+            // A late pass found more elements (browser page finished building
+            // its accessibility tree). Upgrade in place, but never yank labels
+            // out from under the user mid-typing.
+            Mode::Hint
+                if self.session_uia
+                    && self.prefix.is_empty()
+                    && points.len() > self.session.len() =>
+            {
+                self.refine_left = 0;
+                self.begin_hint(hints::point_targets(&points));
+            }
+            _ => {} // stale reply — user moved on
         }
-        if points.is_empty() {
-            tracing::info!("UIA scan empty, falling back to grid");
-            self.enter_hint_grid();
-            return;
-        }
-        self.refine_left = 0; // element hints are exact — never refine
-        self.begin_hint(hints::point_targets(&points));
     }
 
     fn enter_hint_grid(&mut self) {
@@ -424,6 +445,7 @@ impl Engine {
         });
         let targets = hints::grid_cells(l, t, w, h, self.config.grid_cols, self.config.grid_rows);
         self.refine_left = u8::from(self.config.grid_refine);
+        self.session_uia = false;
         self.begin_hint(targets);
     }
 }

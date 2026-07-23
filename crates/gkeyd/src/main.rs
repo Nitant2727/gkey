@@ -215,9 +215,16 @@ fn main() -> Result<()> {
     // Watch the config file and hot-reload on change.
     spawn_reloader(path, reload_tx);
 
-    // Nudge scheduling/timer resolution for low-latency input handling.
+    // Nudge scheduling/timer resolution for low-latency input handling. The
+    // hook thread also gets time-critical priority: under heavy load (video
+    // calls, games) a starved hook misses the OS hook timeout, keys lag, and
+    // the watchdog trips reinstalls.
     unsafe {
         let _ = SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+        let _ = windows::Win32::System::Threading::SetThreadPriority(
+            windows::Win32::System::Threading::GetCurrentThread(),
+            windows::Win32::System::Threading::THREAD_PRIORITY_TIME_CRITICAL,
+        );
         windows::Win32::Media::timeBeginPeriod(1);
     }
 
